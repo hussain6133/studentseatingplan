@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School Reservation System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .stage {
+            font-size: 24px;
+            margin: 20px;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            justify-content: center;
+            gap: 30px; /* Space between sections */
+        }
+        .section {
+            display: grid;
+            grid-template-columns: repeat(9, 30px);
+            grid-gap: 5px;
+        }
+        .middle-section {
+            grid-template-columns: repeat(11, 30px);
+        }
+        .seat {
+            width: 30px;
+            height: 30px;
+            text-align: center;
+            line-height: 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: grey;
+        }
+        .reserved { background-color: green; }
+        .vip { background-color: gold; }
+        .selected { background-color: blue; }
+        .comment-box {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="stage">Stage</div>
+    <div class="container">
+        <!-- Left Section -->
+        <div class="section">
+            {% for row in rows %}
+                {% for col in cols[:9] %}
+                    <div class="seat {% if seats[row+col|string]['status'] == 'reserved' %}reserved{% elif row in ['A', 'B'] %}vip{% else %}available{% endif %}"
+                         id="{{ row }}{{ col }}" onclick="selectSeat('{{ row }}{{ col }}')">{{ row }}{{ col }}</div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+
+        <!-- Middle Section -->
+        <div class="section middle-section">
+            {% for row in rows %}
+                {% for col in cols[9:20] %}
+                    <div class="seat {% if seats[row+col|string]['status'] == 'reserved' %}reserved{% elif row in ['A', 'B'] %}vip{% else %}available{% endif %}"
+                         id="{{ row }}{{ col }}" onclick="selectSeat('{{ row }}{{ col }}')">{{ row }}{{ col }}</div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+
+        <!-- Right Section -->
+        <div class="section">
+            {% for row in rows %}
+                {% for col in cols[20:] %}
+                    <div class="seat {% if seats[row+col|string]['status'] == 'reserved' %}reserved{% elif row in ['A', 'B'] %}vip{% else %}available{% endif %}"
+                         id="{{ row }}{{ col }}" onclick="selectSeat('{{ row }}{{ col }}')">{{ row }}{{ col }}</div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <textarea id="note" class="comment-box" placeholder="Any requests?"></textarea>
+    <button onclick="saveReservation()">Save</button>
+    <button onclick="cancelLastReservation()">Cancel Last Reservation</button>
+    <button onclick="resetAll()">Reset All</button>
+
+    <script>
+        let selectedSeats = [];
+        let seatsData = JSON.parse('{{ seats|tojson|safe }}'); // Convert Jinja JSON data to JS object
+
+        function selectSeat(seatId) {
+            const seat = document.getElementById(seatId);
+            if (seat.classList.contains('available')) {
+                seat.classList.toggle('selected');
+                if (selectedSeats.includes(seatId)) {
+                    selectedSeats = selectedSeats.filter(id => id !== seatId);
+                } else {
+                    selectedSeats.push(seatId);
+                }
+            } else if (seat.classList.contains('reserved')) {
+                alert(`Comment: ${seatsData[seatId].note || "No comment"}`);
+            }
+        }
+
+        function saveReservation() {
+            const note = document.getElementById("note").value;
+            fetch("/reserve", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ seat_ids: selectedSeats, note: note })
+            }).then(response => response.json()).then(data => {
+                if (data.success) {
+                    selectedSeats.forEach(seatId => {
+                        document.getElementById(seatId).classList.remove('selected');
+                        document.getElementById(seatId).classList.add('reserved');
+                        seatsData[seatId].note = note; // Update local seatsData with the new note
+                    });
+                    selectedSeats = [];
+                    document.getElementById("note").value = "";
+                }
+            });
+        }
+
+        function cancelLastReservation() {
+            fetch("/cancel_last_reservation", {
+                method: "POST"
+            }).then(response => response.json()).then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+        }
+
+        function resetAll() {
+            fetch("/reset_all", {
+                method: "POST"
+            }).then(response => response.json()).then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
